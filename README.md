@@ -18,20 +18,33 @@ los pacientes nunca salen de tu computadora.
    - Portada — Anexos (pág. 7)
    - Recomendaciones generales (pág. 8)
 
-2. **Insertar PDFs externos** en los puntos donde lo necesitas:
+2. **Elegir la hoja de dieta por kcal** (panel verde bajo la portada del Plan
+   de Alimentación):
+   - Selecciona las calorías (1100, 1200, 1300… kcal) y la hoja —con sus
+     porciones ya marcadas— se inserta automáticamente después de la portada
+     del plan (página 3).
+   - Escribe el nombre que se imprimirá sobre la línea **NOMBRE** de la hoja;
+     si lo dejas vacío se usa el nombre del paciente del encabezado.
+   - El botón *Vista previa* muestra la hoja tal como saldrá, con el nombre puesto.
+   - **Para agregar más dietas** (hasta 3200 kcal): sube el archivo a la
+     carpeta `dietas/` del repositorio con el número de kcal como nombre
+     (`dietas/1600.pdf`, `dietas/1700.pdf`…). El sitio las detecta solo, sin
+     tocar código.
+
+3. **Insertar PDFs externos** en los puntos donde lo necesitas:
    - Después de la portada de *Revisión Corporal y Nutricional* (uno o varios).
    - Después de la portada del *Plan de Alimentación* (antes de la Lista de
      Equivalentes).
    - Puedes agregar varios archivos por punto, reordenarlos o quitarlos.
 
-3. **Seleccionar los anexos** (págs. 9–53) que requiere el paciente:
+4. **Seleccionar los anexos** (págs. 9–53) que requiere el paciente:
    - **Por nombre**: escribe en el buscador (ej. "hierro", "diabetes").
    - **Por número de página**: escribe por ejemplo `9, 12-14, 26` y pulsa
      *Seleccionar*.
    - Cada anexo muestra una miniatura; haz clic en ella para ver la página
      completa antes de decidir.
 
-4. **Generar el PDF final**: descárgalo o ábrelo directo para imprimir. Si
+5. **Generar el PDF final**: descárgalo o ábrelo directo para imprimir. Si
    escribes el nombre del paciente, se usa en el nombre del archivo
    (`Evaluacion_Nombre_2026-06-12.pdf`).
 
@@ -79,6 +92,7 @@ index.html              Interfaz principal
 css/styles.css          Estilos
 js/config.js            Mapa de secciones y anexos (nombres + páginas)
 js/app.js               Lógica: selección, miniaturas y generación del PDF
+dietas/                 Hojas de dieta por kcal (1100.pdf, 1200.pdf, …)
 plantilla/plantilla.pdf Plantilla base (53 páginas)
 ```
 

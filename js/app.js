@@ -28,7 +28,13 @@
     anexosSeleccionados: new Set(), // números de página
     externos: {},              // slotId -> [{nombre, bytes, paginas}]
     paginasExtra: '',
+    dietasDisponibles: [],     // kcal de las hojas encontradas en dietas/
+    dietaKcal: null,           // kcal de la hoja seleccionada (o null)
+    dietaNombre: '',           // nombre a imprimir sobre la hoja de dieta
   };
+
+  const cacheDietaBytes = new Map(); // kcal -> Uint8Array
+  const cacheDietaPdfjs = new Map(); // kcal -> documento pdf.js
 
   const $ = (sel) => document.querySelector(sel);
 
@@ -43,6 +49,8 @@
       seccionesActivas: estado.seccionesActivas,
       anexosSeleccionados: [...estado.anexosSeleccionados],
       paginasExtra: estado.paginasExtra,
+      dietaKcal: estado.dietaKcal,
+      dietaNombre: estado.dietaNombre,
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(datos));
@@ -60,6 +68,8 @@
       estado.seccionesActivas = datos.seccionesActivas || {};
       estado.anexosSeleccionados = new Set(datos.anexosSeleccionados || []);
       estado.paginasExtra = datos.paginasExtra || '';
+      estado.dietaKcal = datos.dietaKcal || null;
+      estado.dietaNombre = datos.dietaNombre || '';
     }
     // Toda sección sin valor guardado inicia activada.
     for (const s of estado.config.secciones) {
@@ -131,6 +141,142 @@
         'librerías de PDF. Revisa tu conexión a internet y recarga la página.';
 
     renderizarTodo();
+  }
+
+  // ----------------------------------------------------------- Hojas de dieta
+  /**
+   * Detecta qué hojas de dieta existen en la carpeta dietas/ probando
+   * dietas/1100.pdf, dietas/1200.pdf, … Para agregar una dieta nueva basta
+   * subir el archivo al repositorio; no hay que tocar el código.
+   */
+  async function detectarDietas() {
+    const cfg = CONFIG_PREDETERMINADA.dieta;
+    const candidatos = [];
+    for (let k = cfg.kcalMin; k <= cfg.kcalMax; k += cfg.paso) candidatos.push(k);
+    const resultados = await Promise.all(candidatos.map(async (k) => {
+      try {
+        const r = await fetch(cfg.carpeta + k + '.pdf', { method: 'HEAD' });
+        return r.ok ? k : null;
+      } catch (_) {
+        return null;
+      }
+    }));
+    estado.dietasDisponibles = resultados.filter(Boolean);
+    if (estado.dietaKcal && !estado.dietasDisponibles.includes(estado.dietaKcal)) {
+      estado.dietaKcal = null;
+    }
+    renderizarSecciones();
+    renderizarResumen();
+  }
+
+  async function obtenerDietaBytes(kcal) {
+    if (!cacheDietaBytes.has(kcal)) {
+      const r = await fetch(CONFIG_PREDETERMINADA.dieta.carpeta + kcal + '.pdf');
+      if (!r.ok) throw new Error(`no se pudo descargar la hoja de dieta de ${kcal} kcal`);
+      cacheDietaBytes.set(kcal, new Uint8Array(await r.arrayBuffer()));
+    }
+    return cacheDietaBytes.get(kcal);
+  }
+
+  /** Nombre que se imprimirá en la hoja: el propio o, si está vacío, el del paciente. */
+  function nombreEnDieta() {
+    return (estado.dietaNombre || $('#nombrePaciente').value).trim();
+  }
+
+  async function abrirPreviewDieta(kcal) {
+    if (!hayPdfjs) return;
+    const modal = $('#modalPreview');
+    const canvas = $('#modalCanvas');
+    $('#modalTitulo').textContent = `Hoja de dieta — ${kcal} kcal`;
+    modal.hidden = false;
+
+    if (!cacheDietaPdfjs.has(kcal)) {
+      const bytes = await obtenerDietaBytes(kcal);
+      cacheDietaPdfjs.set(kcal, await pdfjsLib.getDocument({ data: bytes.slice() }).promise);
+    }
+    const pagina = await cacheDietaPdfjs.get(kcal).getPage(1);
+    const vp1 = pagina.getViewport({ scale: 1 });
+    const escala = Math.min(720, window.innerWidth - 80) / vp1.width;
+    const vp = pagina.getViewport({ scale: escala });
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    const ctx = canvas.getContext('2d');
+    await pagina.render({ canvasContext: ctx, viewport: vp }).promise;
+
+    // Dibujar el nombre tal como quedará en el PDF final.
+    const nombre = nombreEnDieta();
+    if (nombre) {
+      const pos = CONFIG_PREDETERMINADA.dieta.nombre;
+      ctx.fillStyle = '#000';
+      ctx.font = `${pos.tamano * escala}px Helvetica, Arial, sans-serif`;
+      ctx.fillText(nombre, pos.x * escala, (vp1.height - pos.y) * escala);
+    }
+  }
+
+  function renderizarPanelDieta() {
+    const cont = document.createElement('div');
+    cont.className = 'panel-dieta';
+
+    const titulo = document.createElement('div');
+    titulo.className = 'panel-dieta-titulo';
+    titulo.textContent = '↳ Hoja de dieta por kcal (se inserta después de esta portada)';
+    cont.appendChild(titulo);
+
+    if (!estado.dietasDisponibles.length) {
+      const aviso = document.createElement('p');
+      aviso.className = 'panel-dieta-aviso';
+      aviso.textContent =
+        'No se encontraron hojas en la carpeta dietas/. Sube archivos como ' +
+        'dietas/1100.pdf, dietas/1200.pdf… al repositorio, o usa "+ Agregar PDF".';
+      cont.appendChild(aviso);
+      return cont;
+    }
+
+    const fila = document.createElement('div');
+    fila.className = 'panel-dieta-fila';
+
+    const select = document.createElement('select');
+    select.id = 'selectDieta';
+    const opcionVacia = document.createElement('option');
+    opcionVacia.value = '';
+    opcionVacia.textContent = 'Sin hoja de dieta';
+    select.appendChild(opcionVacia);
+    for (const k of estado.dietasDisponibles) {
+      const op = document.createElement('option');
+      op.value = String(k);
+      op.textContent = `${k} kcal`;
+      select.appendChild(op);
+    }
+    select.value = estado.dietaKcal ? String(estado.dietaKcal) : '';
+    select.addEventListener('change', () => {
+      estado.dietaKcal = select.value ? parseInt(select.value, 10) : null;
+      guardarEstado();
+      renderizarSecciones();
+      renderizarResumen();
+    });
+
+    const inputNombre = document.createElement('input');
+    inputNombre.type = 'text';
+    inputNombre.id = 'nombreDieta';
+    inputNombre.placeholder = 'Nombre en la hoja (vacío = nombre del paciente)';
+    inputNombre.value = estado.dietaNombre;
+    inputNombre.disabled = !estado.dietaKcal;
+    inputNombre.addEventListener('input', () => {
+      estado.dietaNombre = inputNombre.value;
+      guardarEstado();
+      renderizarResumen();
+    });
+
+    const btnVer = document.createElement('button');
+    btnVer.className = 'btn btn-fantasma btn-mini';
+    btnVer.id = 'btnVerDieta';
+    btnVer.textContent = '👁 Vista previa';
+    btnVer.disabled = !estado.dietaKcal;
+    btnVer.addEventListener('click', () => abrirPreviewDieta(estado.dietaKcal));
+
+    fila.append(select, inputNombre, btnVer);
+    cont.appendChild(fila);
+    return cont;
   }
 
   // -------------------------------------------------------------- Miniaturas
@@ -242,6 +388,9 @@
       fila.append(check, etiqueta, badge);
       li.appendChild(fila);
 
+      if (seccion.id === CONFIG_PREDETERMINADA.dieta.despuesDe) {
+        li.appendChild(renderizarPanelDieta());
+      }
       if (seccion.slotExterno) {
         li.appendChild(renderizarSlotExterno(seccion.slotExterno));
       }
@@ -416,6 +565,15 @@
           bloques.push({ tipo: 'plantilla', titulo: seccion.nombre, paginas });
         }
       }
+      if (seccion.id === CONFIG_PREDETERMINADA.dieta.despuesDe && estado.dietaKcal) {
+        const nombre = nombreEnDieta();
+        bloques.push({
+          tipo: 'dieta',
+          titulo: `Hoja de dieta ${estado.dietaKcal} kcal${nombre ? ' — ' + nombre : ''}`,
+          kcal: estado.dietaKcal,
+          paginas: 1,
+        });
+      }
       if (seccion.slotExterno) {
         for (const archivo of estado.externos[seccion.slotExterno.id] || []) {
           bloques.push({
@@ -458,8 +616,9 @@
       const li = document.createElement('li');
       const n = bloque.tipo === 'plantilla' ? bloque.paginas.length : bloque.paginas;
       total += n;
+      const icono = bloque.tipo === 'externo' ? '📎 ' : bloque.tipo === 'dieta' ? '🍽 ' : '';
       li.innerHTML =
-        `<span class="resumen-titulo">${bloque.tipo === 'externo' ? '📎 ' : ''}${escaparHtml(bloque.titulo)}</span>` +
+        `<span class="resumen-titulo">${icono}${escaparHtml(bloque.titulo)}</span>` +
         `<span class="badge">${n} pág.</span>`;
       ol.appendChild(li);
     }
@@ -497,6 +656,23 @@
       if (bloque.tipo === 'plantilla') {
         const indices = bloque.paginas.map((n) => n - 1);
         const paginas = await salida.copyPages(plantilla, indices);
+        paginas.forEach((p) => salida.addPage(p));
+      } else if (bloque.tipo === 'dieta') {
+        // Se carga sin caché porque la página se modifica al estampar el nombre.
+        const doc = await PDFDocument.load(await obtenerDietaBytes(bloque.kcal));
+        const nombre = nombreEnDieta();
+        if (nombre) {
+          const fuente = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+          const pos = CONFIG_PREDETERMINADA.dieta.nombre;
+          doc.getPage(0).drawText(nombre, {
+            x: pos.x,
+            y: pos.y,
+            size: pos.tamano,
+            font: fuente,
+            color: PDFLib.rgb(0, 0, 0),
+          });
+        }
+        const paginas = await salida.copyPages(doc, doc.getPageIndices());
         paginas.forEach((p) => salida.addPage(p));
       } else {
         let doc = cacheExternos.get(bloque.bytes);
@@ -568,6 +744,9 @@
 
   // ------------------------------------------------------------- Eventos UI
   function conectarEventos() {
+    // El nombre del paciente puede aparecer en la hoja de dieta del resumen.
+    $('#nombrePaciente').addEventListener('input', renderizarResumen);
+
     $('#inputPlantilla').addEventListener('change', async (e) => {
       const archivo = e.target.files[0];
       if (!archivo) return;
@@ -585,6 +764,8 @@
       for (const s of estado.config.secciones) estado.seccionesActivas[s.id] = true;
       estado.anexosSeleccionados.clear();
       estado.paginasExtra = '';
+      estado.dietaKcal = null;
+      estado.dietaNombre = '';
       $('#paginasExtra').value = '';
       guardarEstado();
       renderizarTodo();
@@ -673,4 +854,5 @@
   $('#paginasExtra').value = estado.paginasExtra;
   renderizarTodo();
   cargarPlantillaInicial();
+  detectarDietas();
 })();

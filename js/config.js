@@ -9,6 +9,20 @@
 const CONFIG_PREDETERMINADA = {
   version: 1,
 
+  // Hojas de dieta por calorías (carpeta dietas/). El sitio detecta
+  // automáticamente qué archivos existen entre kcalMin y kcalMax (en pasos
+  // de "paso"): para agregar una dieta nueva basta subir dietas/1600.pdf, etc.
+  // "nombre" define dónde se imprime el nombre sobre la línea NOMBRE de la
+  // hoja (coordenadas PDF en puntos, origen abajo-izquierda, hoja carta).
+  dieta: {
+    carpeta: 'dietas/',
+    kcalMin: 1100,
+    kcalMax: 3200,
+    paso: 100,
+    despuesDe: 'portada-plan',
+    nombre: { x: 360, y: 657.7, tamano: 12 },
+  },
+
   // Secciones fijas del documento, en el orden en que se imprimen.
   // "slotExterno" indica que después de esa sección se pueden insertar PDFs externos.
   secciones: [

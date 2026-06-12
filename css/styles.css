@@ -183,6 +183,34 @@ body {
   flex-shrink: 0;
 }
 
+/* Hoja de dieta por kcal */
+.panel-dieta {
+  margin: 10px 0 2px 28px;
+  padding: 10px 12px;
+  background: var(--verde-claro);
+  border: 1px dashed var(--verde);
+  border-radius: 8px;
+}
+
+.panel-dieta-titulo { font-size: 0.82rem; color: var(--verde-oscuro); margin-bottom: 8px; }
+
+.panel-dieta-aviso { font-size: 0.82rem; color: var(--gris); margin: 0; }
+
+.panel-dieta-fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.panel-dieta-fila select,
+.panel-dieta-fila input {
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  background: var(--blanco);
+}
+
+.panel-dieta-fila select { min-width: 140px; }
+.panel-dieta-fila input { flex: 1; min-width: 200px; }
+.panel-dieta-fila input:disabled { background: var(--fondo); }
+
 /* PDFs externos */
 .slot-externo {
   margin: 10px 0 2px 28px;

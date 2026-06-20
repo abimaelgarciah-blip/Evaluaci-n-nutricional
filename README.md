@@ -47,6 +47,10 @@ los pacientes nunca salen de tu computadora.
 5. **Generar el PDF final**: descárgalo o ábrelo directo para imprimir. Si
    escribes el nombre del paciente, se usa en el nombre del archivo
    (`Evaluacion_Nombre_2026-06-12.pdf`).
+   - El PDF se **comprime automáticamente** para que pese menos: cada página
+     se rasteriza a imagen JPEG (~150 DPI, nivel equilibrado). Esto reduce
+     bastante el tamaño sin pérdida visible al imprimir. El nivel se puede
+     ajustar en `js/app.js` (constante `COMPRESION`).
 
 ### Otros detalles útiles
 

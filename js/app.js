@@ -18,6 +18,14 @@
   const LS_KEY = 'evaluacion-nutricional-estado-v1';
   const RUTA_PLANTILLA = 'plantilla/plantilla.pdf';
 
+  // Compresión del PDF final: cada página se rasteriza a imagen JPEG para
+  // reducir el peso. Nivel "equilibrado": buena nitidez al imprimir y archivos
+  // bastante más livianos. (72 DPI = escala 1 en pdf.js.)
+  const COMPRESION = {
+    dpi: 150,        // resolución de salida
+    calidad: 0.75,   // calidad JPEG (0–1)
+  };
+
   // ------------------------------------------------------------------ Estado
   const estado = {
     config: clonar(CONFIG_PREDETERMINADA),
@@ -686,12 +694,62 @@
     }
 
     const paciente = $('#nombrePaciente').value.trim();
-    salida.setTitle(paciente
+    const titulo = paciente
       ? `Evaluación Nutricional — ${paciente}`
-      : 'Evaluación Corporal y Nutricional');
+      : 'Evaluación Corporal y Nutricional';
+    salida.setTitle(titulo);
     salida.setCreator('Generador de Evaluación Nutricional');
 
-    return salida.save();
+    const ensamblado = await salida.save();
+    return comprimirPdf(ensamblado, titulo);
+  }
+
+  /**
+   * Rasteriza cada página del PDF a imagen JPEG y rearma un PDF más liviano.
+   * Si pdf.js no está disponible o algo falla, devuelve el PDF sin comprimir
+   * (mejor entregar el documento que romper la generación).
+   */
+  async function comprimirPdf(bytes, titulo) {
+    if (!hayPdfjs) return bytes;
+
+    const msg = $('#msgGeneracion');
+    try {
+      const { PDFDocument } = PDFLib;
+      const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+      const salida = await PDFDocument.create();
+      const escala = COMPRESION.dpi / 72; // pdf.js: escala 1 ≈ 72 DPI
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (msg) msg.textContent = `Comprimiendo PDF… página ${i} de ${pdf.numPages}`;
+
+        const pagina = await pdf.getPage(i);
+        const vp1 = pagina.getViewport({ scale: 1 });        // tamaño en puntos
+        const vp = pagina.getViewport({ scale: escala });    // tamaño en píxeles
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(vp.width);
+        canvas.height = Math.round(vp.height);
+        const ctx = canvas.getContext('2d');
+        // Fondo blanco: las imágenes JPEG no tienen transparencia.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await pagina.render({ canvasContext: ctx, viewport: vp }).promise;
+
+        const jpg = canvas.toDataURL('image/jpeg', COMPRESION.calidad);
+        const img = await salida.embedJpg(jpg);
+        const hoja = salida.addPage([vp1.width, vp1.height]);
+        hoja.drawImage(img, { x: 0, y: 0, width: vp1.width, height: vp1.height });
+
+        pagina.cleanup();
+      }
+
+      salida.setTitle(titulo);
+      salida.setCreator('Generador de Evaluación Nutricional');
+      return salida.save();
+    } catch (err) {
+      console.error('No se pudo comprimir, se entrega sin comprimir:', err);
+      return bytes;
+    }
   }
 
   function nombreArchivoSalida() {

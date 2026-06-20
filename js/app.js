@@ -561,17 +561,28 @@
    *  { tipo: 'plantilla', titulo, paginas: [n…] }
    *  { tipo: 'externo',   titulo, bytes, paginas: total }
    */
+  // La sección "Recomendaciones generales" se imprime al final del documento,
+  // después de los anexos (no en su posición original tras la portada de anexos).
+  const ID_RECOMENDACIONES = 'recomendaciones';
+
+  function bloqueDeSeccion(seccion, max) {
+    let paginas = [];
+    try { paginas = parsearPaginas(seccion.paginas, max); } catch (_) { /* rango inválido: omitir */ }
+    if (!paginas.length) return null;
+    return { tipo: 'plantilla', titulo: seccion.nombre, paginas };
+  }
+
   function construirOrden() {
     const bloques = [];
     const max = estado.totalPaginasPlantilla || null;
 
     for (const seccion of estado.config.secciones) {
+      // Recomendaciones se agrega más abajo, después de los anexos.
+      if (seccion.id === ID_RECOMENDACIONES) continue;
+
       if (estado.seccionesActivas[seccion.id]) {
-        let paginas = [];
-        try { paginas = parsearPaginas(seccion.paginas, max); } catch (_) { /* rango inválido: omitir */ }
-        if (paginas.length) {
-          bloques.push({ tipo: 'plantilla', titulo: seccion.nombre, paginas });
-        }
+        const bloque = bloqueDeSeccion(seccion, max);
+        if (bloque) bloques.push(bloque);
       }
       if (seccion.id === CONFIG_PREDETERMINADA.dieta.despuesDe && estado.dietaKcal) {
         const nombre = nombreEnDieta();
@@ -603,6 +614,13 @@
         titulo: `Anexo: ${anexo ? anexo.nombre : 'página ' + pagina}`,
         paginas: [pagina],
       });
+    }
+
+    // Recomendaciones generales: al final, después de los anexos.
+    const recomendaciones = estado.config.secciones.find((s) => s.id === ID_RECOMENDACIONES);
+    if (recomendaciones && estado.seccionesActivas[recomendaciones.id]) {
+      const bloque = bloqueDeSeccion(recomendaciones, max);
+      if (bloque) bloques.push(bloque);
     }
 
     let extra = [];

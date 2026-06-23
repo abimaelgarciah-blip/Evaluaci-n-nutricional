@@ -75,6 +75,14 @@
 
     if (datos && datos.config && datos.config.version === CONFIG_PREDETERMINADA.version) {
       estado.config = datos.config;
+      // Refresca los datos estructurales de los slots externos desde el código
+      // (p. ej. permiteFondo). Una config guardada antes de añadir esa marca no
+      // la tendría, así que la opción de membrete no aparecería. Los renombrados
+      // del usuario (nombre/paginas) se conservan.
+      for (const seccion of estado.config.secciones) {
+        const def = CONFIG_PREDETERMINADA.secciones.find((s) => s.id === seccion.id);
+        if (def) seccion.slotExterno = def.slotExterno;
+      }
       estado.seccionesActivas = datos.seccionesActivas || {};
       estado.anexosSeleccionados = new Set(datos.anexosSeleccionados || []);
       estado.paginasExtra = datos.paginasExtra || '';

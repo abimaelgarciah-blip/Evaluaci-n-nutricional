@@ -38,6 +38,7 @@ const CONFIG_PREDETERMINADA = {
       slotExterno: {
         id: 'ext-revision',
         etiqueta: 'PDFs externos de la revisión (se insertan después de esta portada)',
+        permiteFondo: true,
       },
     },
     {

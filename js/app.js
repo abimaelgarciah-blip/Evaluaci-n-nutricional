@@ -39,6 +39,7 @@
     dietasDisponibles: [],     // kcal de las hojas encontradas en dietas/
     dietaKcal: null,           // kcal de la hoja seleccionada (o null)
     dietaNombre: '',           // nombre a imprimir sobre la hoja de dieta
+    membreteFondo: null,       // { nombre, dataURL } imagen de fondo para PDFs externos de revisión
   };
 
   const cacheDietaBytes = new Map(); // kcal -> Uint8Array
@@ -59,6 +60,7 @@
       paginasExtra: estado.paginasExtra,
       dietaKcal: estado.dietaKcal,
       dietaNombre: estado.dietaNombre,
+      membreteFondo: estado.membreteFondo,
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(datos));
@@ -78,6 +80,7 @@
       estado.paginasExtra = datos.paginasExtra || '';
       estado.dietaKcal = datos.dietaKcal || null;
       estado.dietaNombre = datos.dietaNombre || '';
+      estado.membreteFondo = datos.membreteFondo || null;
     }
     // Toda sección sin valor guardado inicia activada.
     for (const s of estado.config.secciones) {
@@ -493,7 +496,64 @@
     botonAgregar.appendChild(input);
     cont.appendChild(botonAgregar);
 
+    if (slot.permiteFondo) {
+      cont.appendChild(renderizarMembreteFondo());
+    }
+
     return cont;
+  }
+
+  function renderizarMembreteFondo() {
+    const caja = document.createElement('div');
+    caja.className = 'membrete-fondo';
+
+    const estadoTxt = document.createElement('span');
+    estadoTxt.className = 'membrete-estado';
+    estadoTxt.textContent = estado.membreteFondo
+      ? `🖼 Membrete: ${estado.membreteFondo.nombre}`
+      : 'Sin membrete de fondo';
+    caja.appendChild(estadoTxt);
+
+    const botonImg = document.createElement('label');
+    botonImg.className = 'btn btn-fantasma btn-archivo btn-mini';
+    botonImg.textContent = estado.membreteFondo ? 'Cambiar imagen…' : 'Membrete de fondo (PNG/JPG)…';
+    const inputImg = document.createElement('input');
+    inputImg.type = 'file';
+    inputImg.accept = 'image/png,image/jpeg';
+    inputImg.hidden = true;
+    inputImg.addEventListener('change', () => {
+      const archivo = inputImg.files[0];
+      if (!archivo) return;
+      const lector = new FileReader();
+      lector.onload = () => {
+        estado.membreteFondo = { nombre: archivo.name, dataURL: lector.result };
+        guardarEstado();
+        renderizarTodo();
+      };
+      lector.onerror = () => alert(`No se pudo leer la imagen "${archivo.name}".`);
+      lector.readAsDataURL(archivo);
+    });
+    botonImg.appendChild(inputImg);
+    caja.appendChild(botonImg);
+
+    if (estado.membreteFondo) {
+      const quitar = document.createElement('button');
+      quitar.className = 'btn btn-fantasma btn-mini';
+      quitar.textContent = 'Quitar';
+      quitar.addEventListener('click', () => {
+        estado.membreteFondo = null;
+        guardarEstado();
+        renderizarTodo();
+      });
+      caja.appendChild(quitar);
+    }
+
+    const ayuda = document.createElement('p');
+    ayuda.className = 'membrete-ayuda';
+    ayuda.textContent = 'Se aplica como fondo a cada página de los PDF externos de arriba.';
+    caja.appendChild(ayuda);
+
+    return caja;
   }
 
   function renderizarAnexos() {
@@ -600,6 +660,7 @@
             titulo: archivo.nombre,
             bytes: archivo.bytes,
             paginas: archivo.paginas,
+            conFondo: !!seccion.slotExterno.permiteFondo && !!estado.membreteFondo,
           });
         }
       }
@@ -678,6 +739,17 @@
     const plantilla = await PDFDocument.load(estado.plantillaBytes);
     const cacheExternos = new Map();
 
+    // Embebe la imagen de membrete una sola vez (PNG o JPG, según el data URL).
+    let fondoEmbed = null;
+    const embedarMembrete = async () => {
+      if (fondoEmbed) return fondoEmbed;
+      const url = estado.membreteFondo.dataURL;
+      fondoEmbed = /^data:image\/png/i.test(url)
+        ? await salida.embedPng(url)
+        : await salida.embedJpg(url);
+      return fondoEmbed;
+    };
+
     for (const bloque of construirOrden()) {
       if (bloque.tipo === 'plantilla') {
         const indices = bloque.paginas.map((n) => n - 1);
@@ -706,8 +778,19 @@
           doc = await PDFDocument.load(bloque.bytes, { ignoreEncryption: true });
           cacheExternos.set(bloque.bytes, doc);
         }
-        const paginas = await salida.copyPages(doc, doc.getPageIndices());
-        paginas.forEach((p) => salida.addPage(p));
+        if (bloque.conFondo && estado.membreteFondo) {
+          // El membrete va de fondo (detrás) en cada página del PDF externo.
+          const fondo = await embedarMembrete();
+          const embebidas = await salida.embedPdf(doc, doc.getPageIndices());
+          for (const ep of embebidas) {
+            const hoja = salida.addPage([ep.width, ep.height]);
+            hoja.drawImage(fondo, { x: 0, y: 0, width: ep.width, height: ep.height });
+            hoja.drawPage(ep, { x: 0, y: 0, width: ep.width, height: ep.height });
+          }
+        } else {
+          const paginas = await salida.copyPages(doc, doc.getPageIndices());
+          paginas.forEach((p) => salida.addPage(p));
+        }
       }
     }
 

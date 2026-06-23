@@ -249,6 +249,19 @@ body {
 
 .slot-acciones button:disabled { opacity: 0.35; cursor: default; }
 
+.membrete-fondo {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--naranja);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.membrete-estado { font-size: 0.82rem; color: #ad6a2a; flex: 1 1 100%; }
+.membrete-ayuda { flex: 1 1 100%; margin: 2px 0 0; font-size: 0.78rem; color: var(--gris); }
+
 /* ----------------------------------------------------------------- Anexos */
 .anexos-controles { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 

@@ -36,6 +36,10 @@ los pacientes nunca salen de tu computadora.
    - Después de la portada del *Plan de Alimentación* (antes de la Lista de
      Equivalentes).
    - Puedes agregar varios archivos por punto, reordenarlos o quitarlos.
+   - **Membrete de fondo** (solo en el punto de *Revisión Corporal y
+     Nutricional*): puedes elegir una imagen PNG/JPG que se inserta como fondo
+     en cada página de los PDF externos de ese punto (útil para subir un PDF en
+     blanco y que salga con el membrete). La imagen se recuerda en tu navegador.
 
 4. **Seleccionar los anexos** (págs. 9–53) que requiere el paciente:
    - **Por nombre**: escribe en el buscador (ej. "hierro", "diabetes").

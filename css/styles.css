@@ -39,7 +39,24 @@ body {
   justify-content: space-between;
 }
 
+.header-titulo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-rio {
+  height: 56px;
+  width: auto;
+  flex-shrink: 0;
+  background: var(--blanco);
+  border-radius: 8px;
+  padding: 6px 10px;
+  box-shadow: var(--sombra);
+}
+
 .app-header h1 { margin: 0; font-size: 1.45rem; }
+.subtitle-empresa { margin: 2px 0 0; font-weight: 600; font-size: 0.95rem; opacity: 0.95; }
 .subtitle { margin: 4px 0 0; opacity: 0.92; font-size: 0.92rem; max-width: 640px; }
 
 #nombrePaciente {

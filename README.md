@@ -76,7 +76,7 @@ los pacientes nunca salen de tu computadora.
 4. En un par de minutos el sitio quedará disponible en
    `https://<tu-usuario>.github.io/<nombre-del-repositorio>/`.
 
-## Cómo usarlo localmente
+## Cómo usarlo localmente (prueba rápida)
 
 Por seguridad, los navegadores no permiten leer la plantilla con `fetch` desde
 `file://`, así que conviene levantar un servidor local:
@@ -92,6 +92,127 @@ npx http-server -p 8000
 y abrir <http://localhost:8000>. (Si abres `index.html` directamente, el sitio
 funciona igual pero te pedirá cargar la plantilla con el botón
 *Reemplazar plantilla…*.)
+
+Esto sirve para probar, pero el servidor se apaga en cuanto cierras la
+terminal. Para dejarlo funcionando de forma permanente en un equipo propio
+(consultorio, oficina), sigue la guía de abajo.
+
+## Migrar a un servidor propio (uso permanente)
+
+El sitio es **100% estático**: no hay base de datos ni backend, así que
+"migrarlo" consiste solo en copiar la carpeta del proyecto a un equipo y
+servirla con cualquier servidor web. No hace falta instalar Python, Node ni
+nada especial en el servidor final —eso solo es un atajo para probar en tu
+propia máquina.
+
+### 1. Copiar los archivos
+
+Clona o copia el repositorio completo (incluyendo `plantilla/`, `dietas/`,
+`css/`, `js/`) al equipo/servidor que vas a usar, por ejemplo en
+`/var/www/evaluacion-nutricional` (Linux) o `C:\sitios\evaluacion-nutricional`
+(Windows).
+
+### 2. Servirlo con un servidor web real
+
+Cualquiera de estas opciones funciona; usa la que ya tengas disponible.
+
+**Linux con Nginx** (recomendado para dejarlo corriendo siempre):
+
+```nginx
+server {
+    listen 80;
+    server_name evaluacion.local;  # o la IP del equipo
+    root /var/www/evaluacion-nutricional;
+    index index.html;
+}
+```
+
+```bash
+sudo cp evaluacion.conf /etc/nginx/sites-available/
+sudo ln -s /etc/nginx/sites-available/evaluacion.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Linux con Apache**: coloca los archivos en `/var/www/html/` (o un
+`VirtualHost` apuntando a la carpeta) y asegúrate de que el módulo
+`mod_dir` esté activo para que sirva `index.html` por defecto.
+
+**Windows con IIS**: en el *Administrador de IIS*, agrega un nuevo sitio
+apuntando a la carpeta del proyecto, con `index.html` como documento
+predeterminado.
+
+**Sin instalar nada (servicio ligero, cualquier SO)**: usa `http-server`
+de Node como servicio persistente en vez de ejecutarlo a mano:
+
+```bash
+npm install -g http-server
+# Linux (systemd) — crea /etc/systemd/system/evaluacion-nutricional.service:
+#   [Unit]
+#   Description=Evaluación Nutricional
+#   After=network.target
+#   [Service]
+#   ExecStart=/usr/bin/http-server /var/www/evaluacion-nutricional -p 8000
+#   Restart=always
+#   [Install]
+#   WantedBy=multi-user.target
+sudo systemctl enable --now evaluacion-nutricional
+```
+
+En Windows puedes lograr lo mismo registrando el comando como servicio con
+[NSSM](https://nssm.cc/), o dejando corriendo `http-server` con el Programador
+de tareas al iniciar sesión.
+
+### 3. Acceso desde otros equipos de la red local
+
+Si el servidor debe verse desde otras computadoras del consultorio/oficina
+(no solo desde la máquina donde corre):
+
+- Asegúrate de que el servidor escuche en `0.0.0.0` (Nginx/Apache/IIS lo
+  hacen por defecto; con `http-server` usa `-a 0.0.0.0`).
+- Abre el puerto correspondiente (80, 8000, etc.) en el firewall del equipo.
+- En las otras computadoras, entra a `http://<IP-del-servidor>:<puerto>`
+  (por ejemplo `http://192.168.1.50:8000`). Puedes fijar esa IP como
+  reservada en el router para que no cambie.
+- Opcional: si tienes un dominio o DNS interno, apúntalo a esa IP para usar
+  un nombre en vez de la IP (`http://evaluacion.local`).
+
+### 4. HTTPS (opcional)
+
+No es obligatorio en una red local cerrada, pero si quieres cifrar la
+conexión puedes generar un certificado autofirmado, o usar
+[Caddy](https://caddyserver.com/) en vez de Nginx (emite HTTPS local
+automáticamente con `caddy file-server`).
+
+### 5. Modo totalmente sin internet (opcional)
+
+El sitio guarda todo en el navegador del usuario, pero **sigue cargando
+tres librerías desde un CDN público** (`pdf-lib`, `pdf.js` y su *worker*),
+declaradas en `index.html` y `js/app.js`. Si el servidor va a operar en una
+red sin salida a internet, descarga esos tres archivos y sírvelos de forma
+local:
+
+1. Descarga:
+   - `https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js`
+   - `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js`
+   - `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`
+2. Guárdalos en una carpeta nueva, por ejemplo `vendor/`.
+3. En `index.html`, cambia las dos etiquetas `<script src="https://cdnjs...">`
+   por rutas locales (`vendor/pdf-lib.min.js`, `vendor/pdf.min.js`).
+4. En `js/app.js`, cambia la línea de `workerSrc` por la ruta local
+   (`vendor/pdf.worker.min.js`).
+
+Si el equipo sí tiene internet (aunque sea limitado), no es necesario hacer
+esto: las librerías se cachean en el navegador tras la primera carga.
+
+### Nota sobre la contraseña de acceso
+
+El candado de `js/auth.js` es solo una barrera básica (compara el hash de la
+contraseña en el propio navegador) para evitar el uso casual; no es
+seguridad real, ya que el sitio es estático y su código es visible para
+cualquiera con acceso al servidor. Si necesitas control de acceso serio
+(usuarios, permisos, HTTPS obligatorio), eso debe resolverse a nivel del
+servidor web (autenticación básica de Nginx/Apache/IIS, VPN, red interna,
+etc.), no con este candado.
 
 ## Estructura del proyecto
 
